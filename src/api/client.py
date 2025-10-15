@@ -58,12 +58,3 @@ class LLMClient:
         async for chunk in self._chat_model.astream(messages, **kwargs):
             yield getattr(chunk, "content", str(chunk))
 
-
-def create_default_ollama_client() -> LLMClient:
-    """環境変数ベースの設定でOllamaクライアントを生成する。"""
-    return LLMClient.from_provider(OllamaProvider())
-
-
-def create_default_gemini_client() -> LLMClient:
-    """環境変数ベースの設定でGeminiクライアントを生成する。"""
-    return LLMClient.from_provider(GeminiProvider())

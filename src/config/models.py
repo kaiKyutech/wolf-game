@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Literal, Optional
+from typing import Dict, Literal, Optional, Union
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
@@ -45,10 +45,10 @@ class ModelRegistry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-def load_model_registry(config_path: Path | None = None) -> ModelRegistry:
+def load_model_registry(config_path: Union[Path, str, None] = None) -> ModelRegistry:
     """YAMLファイルを読み込み、モデル名→設定の辞書を返す。"""
 
-    path = Path(config_path or DEFAULT_MODELS_PATH).resolve()
+    path = Path(config_path or DEFAULT_MODELS_PATH)
     if not path.exists():
         raise FileNotFoundError(f"モデル設定ファイルが見つかりません: {path}")
 
@@ -66,20 +66,20 @@ def list_model_names(config_path: Path | None = None) -> list[str]:
     return list(load_model_registry(config_path).models.keys())
 
 
-def get_model_config(name: str, config_path: Path | None = None) -> ModelConfig:
+def get_model_config(name: str, config_path: Union[Path, str, None] = None) -> ModelConfig:
     """指定名のモデル設定を取得。"""
 
-    registry = load_model_registry(config_path)
+    registry = load_model_registry(Path(config_path) if config_path else None)
     if name not in registry.models:
         available = ", ".join(sorted(registry.models))
         raise KeyError(f"モデル名 '{name}' は設定に存在しません。利用可能: {available}")
     return registry.models[name]
 
 
-def create_client_from_model_name(name: str, *, config_path: Path | None = None) -> LLMClient:
+def create_client_from_model_name(name: str, *, config_path: Union[Path, str, None] = None) -> LLMClient:
     """設定ファイル上のモデル名からLLMClientを生成する。"""
 
-    model_config = get_model_config(name, config_path)
+    model_config = get_model_config(name, Path(config_path) if config_path else None)
     kwargs = model_config.to_provider_kwargs()
     if model_config.provider == "ollama":
         return LLMClient.from_ollama_settings(**kwargs)
