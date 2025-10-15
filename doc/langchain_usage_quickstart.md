@@ -188,7 +188,7 @@ print(answer)
 - 大規模運用ではベクトルDB（Chroma, Weaviate, Qdrantなど）への置き換えも簡単です。
 
 ## 9. Notebookとスクリプトで共通に使うための簡単なラッパ
-CLIからは `python scripts/run_chat.py gemini_flash "プロンプト"` のように呼び出すと、models.yaml のエイリアスで切り替えられます。
+CLIからは `python scripts/run_chat.py gemini_flash "システムメッセージ" "ユーザープロンプト"` のように呼び出すと、models.yaml のエイリアスで切り替えられます。
 
 ```python
 # src/api/simple_client.py （今後の骨組みの入口イメージ）
@@ -237,7 +237,7 @@ models:
 ```
 
 コードからは `create_client_from_model_name("ollama_default")` のように指定します。CLI では
-`python scripts/run_chat.py gemini_flash "..."` とするだけで切り替え可能です。
+`python scripts/run_chat.py gemini_flash "システムメッセージ" "ユーザープロンプト"` とするだけで切り替え可能です。
 
 ```python
 from src.config import create_client_from_model_name
