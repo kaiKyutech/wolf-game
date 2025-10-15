@@ -1,0 +1,40 @@
+[project]
+name = "langchain-1014-v2"
+version = "0.1.0"
+description = "LangChainのプロバイダ横断実験用プレイグラウンド（初期対応はOllama）"
+authors = [{ name = "kaiha" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "langchain>=0.2.0",
+  "langchain-community>=0.2.0",
+  "langchain-core>=0.2.0",
+  "langchain-ollama>=0.1.0",
+  "pydantic>=2.6",
+  "pydantic-settings>=2.2",
+  "typer>=0.12",
+  "rich>=13.7",
+  "orjson>=3.9",
+  "langchain-google-genai>=0.1.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "pytest-asyncio>=0.23",
+  "ruff>=0.5"
+]
+
+[tool.rye]
+dev-dependencies = ["langchain>=0.2"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-ra"
