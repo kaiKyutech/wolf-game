@@ -11,7 +11,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # pyproject.toml 作成前の暫定インストール例
-pip install "langchain>=0.2" langchain-community langchain-core
+pip install "langchain>=0.2" langchain-community langchain-core langchain-google-genai
 ```
 
 - Ollamaを使う場合は、ローカルで`ollama serve`を起動しモデル（例: `ollama pull llama3.1`) を用意。
@@ -64,7 +64,25 @@ print(response.content)
 
 ---
 
-## 4. PromptTemplateを使った柔軟なプロンプト構築
+## 4. Gemini（Google Generative AI）を使った呼び出し
+Geminiを利用する場合は `langchain-google-genai` の `ChatGoogleGenerativeAI` をラップします。APIキーは環境変数 `GEMINI_API_KEY`（または `.env` 内の `GEMINI_API_KEY`）に設定してください。
+
+```python
+from langchain_core.messages import SystemMessage, HumanMessage
+from src.api import LLMClient
+
+client = LLMClient.from_gemini_settings(model="gemini-1.5-pro", temperature=0.1)
+response = client.invoke([
+    SystemMessage(content="あなたは要約の専門家です"),
+    HumanMessage(content="LangChainでGeminiを呼び出すポイントを簡潔にまとめて"),
+])
+print(response.content)
+```
+
+- `model` は `gemini-1.5-flash` などに差し替え可能。
+- Google側の安全設定が必要なケースでは `safety_settings` など追加パラメータも `from_gemini_settings()` のキーワード引数経由で渡せます。
+
+## 5. PromptTemplateを使った柔軟なプロンプト構築
 ```python
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
@@ -86,7 +104,7 @@ print(result.content)
 
 ---
 
-## 5. セッション（履歴）を持つ会話の例
+## 6. セッション（履歴）を持つ会話の例
 ```python
 from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import AIMessage, HumanMessage
@@ -109,7 +127,7 @@ print(chat("LangChainで会話履歴を扱う利点は?"))
 
 ---
 
-## 6. 画像入力（マルチモーダル）を扱うパターン
+## 7. 画像入力（マルチモーダル）を扱うパターン
 LangChainは`HumanMessage`の`content`に複数タイプの要素を持たせることで画像を扱えます。以下はHTTP API経由などで画像をbase64化して渡す例です（モデル側でVision対応が必要）。
 
 ```python
@@ -135,7 +153,7 @@ print(response.content)
 
 ---
 
-## 7. RAG（Retrieval Augmented Generation）の最小構成
+## 8. RAG（Retrieval Augmented Generation）の最小構成
 LangChainでは`TextSplitter`で文書を分割し、`VectorStore`に格納した後、`RetrievalQA`などのチェーンでLLMと結び付けます。まずはローカルメモリ向けにFAISSを使う例です。
 
 ```python
@@ -169,7 +187,9 @@ print(answer)
 - Werewolfの記憶制御は、この`vector_store`やLangChainの`Memory`クラスを組み合わせて「どこまで履歴を保持/検索するか」を調整します。
 - 大規模運用ではベクトルDB（Chroma, Weaviate, Qdrantなど）への置き換えも簡単です。
 
-## 8. Notebookとスクリプトで共通に使うための簡単なラッパ
+## 9. Notebookとスクリプトで共通に使うための簡単なラッパ
+CLIからは `python scripts/run_chat.py gemini_flash "プロンプト"` のように呼び出すと、models.yaml のエイリアスで切り替えられます。
+
 ```python
 # src/api/simple_client.py （今後の骨組みの入口イメージ）
 from typing import Sequence
@@ -201,7 +221,30 @@ CLI `.py` スクリプトでも同じ呼び出しができるため、学習フ�
 
 ---
 
-## 9. 次の確認ポイント
+## 10. YAML設定でモデルを切り替える
+`config/models.yaml` に複数のモデル設定を登録し、名前で呼び出せます。
+
+```yaml
+models:
+  ollama_default:
+    provider: ollama
+    model: llama3.1
+    base_url: https://example.com
+  gemini_flash:
+    provider: gemini
+    model: gemini-1.5-flash
+    temperature: 0.1
+```
+
+コードからは `create_client_from_model_name("ollama_default")` のように指定します。CLI では
+`python scripts/run_chat.py gemini_flash "..."` とするだけで切り替え可能です。
+
+```python
+from src.config import create_client_from_model_name
+client = create_client_from_model_name("ollama_default")
+```
+
+## 11. 次の確認ポイント
 - Notebook用に `notebooks/langchain_basics/` を用意しました。ここに実際の呼び出しノートを追加します。
 - 上記サンプルコードを実際に動かし、LangChainの`messages`モデルと`prompt`テンプレートの感覚を掴む。
 - 画像付きリクエストやJSON出力など、実際に必要なI/O形式を試して差異を把握する。

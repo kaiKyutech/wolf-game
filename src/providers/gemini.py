@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .base import BaseProvider
 
@@ -21,10 +21,7 @@ class GeminiSettings(BaseSettings):
     top_p: float = Field(default=0.95, ge=0.0, le=1.0)
     max_output_tokens: Optional[int] = Field(default=None, description="最大出力トークン数")
 
-    class Config:
-        env_prefix = "GEMINI_"
-        env_file = ".env"
-        validate_assignment = True
+    model_config = SettingsConfigDict(env_prefix="GEMINI_", extra="ignore")
 
 
 # Gemini設定からLangChainのChatGoogleGenerativeAIインスタンスを生成するプロバイダ

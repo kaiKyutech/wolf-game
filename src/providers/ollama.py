@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from langchain_community.chat_models import ChatOllama
+from langchain_ollama import ChatOllama
 from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .base import BaseProvider
 
@@ -20,14 +20,12 @@ class OllamaSettings(BaseSettings):
         default="http://localhost:11434",
         description="OllamaサーバーのベースURL",
     )
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     top_p: float = Field(default=0.95, ge=0.0, le=1.0)
     keep_alive: Optional[str] = Field(default=None, description="Ollamaのkeep-alive設定")
     streaming: bool = Field(default=False, description="デフォルトでストリーミング応答を有効にするか")
 
-    class Config:
-        env_prefix = "OLLAMA_"
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_prefix="OLLAMA_", extra="ignore")
 
 
 # Ollama設定からLangChainのChatOllamaインスタンスを生成するプロバイダ

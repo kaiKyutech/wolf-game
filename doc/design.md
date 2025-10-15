@@ -49,8 +49,8 @@
 ```
 
 ## 5. コンポーネント詳細
-- **Config / Prompt Store**: プロンプトテンプレート、システムメッセージ、プロバイダ設定（モデル名、温度、APIキー）をYAML/JSONで管理。
-- **プロバイダアダプタ**: `ChatOllama`を始め、`ChatGoogleGenerativeAI`や`ChatAnthropic`等へ切り替え可能なファクトリ。統一インターフェース（`LLMClient.generate(messages, config)`）を提供。
+- **Config / Prompt Store**: プロンプトテンプレート、システムメッセージ、プロバイダ設定（モデル名、温度、APIキー）をYAML/JSONで管理。`config/models.yaml` でモデル名→設定を定義し、`create_client_from_model_name` で動的に切り替え。
+- **プロバイダアダプタ**: `ChatOllama`に加え、`ChatGoogleGenerativeAI`（Gemini）など他プロバイダへ切り替え可能なファクトリ。統一インターフェース（`LLMClient.generate(messages, config)`）を提供。
 - **インタラクションAPI**: Notebook/CLIから呼び出す公共窓口。単発呼び出しと会話セッションの双方を扱い、プロンプトや入出力の型を揃える。
 - **サンプルユースケース**: シンプルなQA、システムプロンプト制御、画像キャプション生成、（拡張）ワンナイト人狼のロールプレイなどをモジュール化。
 - **エージェント / シミュレーション層（フェーズ2以降）**: プレイヤーID・役職・行動方針のテンプレートからLangChainの`Runnable`グラフを構築し、ゲーム進行を制御。
@@ -64,6 +64,7 @@
 - モデル呼び出し: 初期は`ChatOllama`。Streamingが必要な場合はLangChainの`astream`を使用し、API側でコールバック or イテレータを提供。
 - 出力パース: JSON形式や構造化データを返すケースは`StructuredOutputParser`や`JsonOutputParser`を利用し、API層で例外処理・再試行を実装。
 - セッション管理: CLIとNotebook双方で共有できる`ConversationSession`（履歴、メタデータ、ログ書き出し）を定義。
+- モデル選択: `config/models.yaml`の名前解決を通じて、環境ごとに異なるモデル構成を簡潔に切り替える。
 - 記憶/RAG連携: LangChainのMemory APIとベクトルリトリーバ（FAISS/Chroma等）を組み合わせ、必要な履歴のみを取得してプロンプトに差し込む。人狼の役職別記憶制御にも転用。
 
 ## 7. プロジェクト構成案
@@ -73,12 +74,16 @@ langchain-1014-v2/
 │   └── design.md
 ├── notebooks/
 │   ├── playground.ipynb         # LangChainお試し
-│   └── api_demo.ipynb           # 共通APIのNotebookデモ
+│   ├── api_demo.ipynb           # 共通APIのNotebookデモ
+│   └── gemini_client.ipynb      # Geminiアクセスのサンプル
 ├── src/
 │   ├── __init__.py
 │   ├── api/
 │   │   ├── __init__.py
 │   │   └── client.py            # 共通LLMクライアント
+│   ├── config/
+│   │   ├── __init__.py          # 設定ローダの公開
+│   │   └── models.py            # YAMLベースのモデル辞書
 │   ├── providers/
 │   │   ├── __init__.py
 │   │   ├── base.py
@@ -136,6 +141,9 @@ API基盤が整った後の応用例。API層で複数プロバイダを扱う�
 - **langchain-community**: `ChatOllama`などコミュニティ実装のLLMクライアント。
 - **langchain-core** (自動依存だが明示的にPin推奨): 低レベルRunnable/APIを安定運用。
 - **langchain-ollama** (必要に応じて): Ollamaエンドポイント用の軽量依存。
+- **langchain-google-genai**: Geminiとの連携を提供。
+- **pyyaml**: YAML設定(`config/models.yaml`)の読み書き。
+- **python-dotenv**: Notebook/CLIで`.env`を自動読み込み。
 - **pydantic** / **pydantic-settings**: 設定管理やモデルバリデーション。
 - **typer**: CLIエントリポイント作成。
 - **rich**: 進捗やログの整形表示。
@@ -144,7 +152,7 @@ API基盤が整った後の応用例。API層で複数プロバイダを扱う�
 - **ruff**: Lint/フォーマット統合で可読性維持。
 
 ## 12. 次のステップ
-1. `pyproject.toml`を作成し、LangChain + Ollama依存とAPIラッパの骨組みを実装。
+1. `pyproject.toml`を作成し、LangChain + Ollama依存とAPIラッパ（YAML設定ローダ含む）の骨組みを実装。
 2. `src/providers/ollama.py`および共通`llm_client.py`を整備し、Notebook/CLIから同じメソッドで呼び出すデモを用意。
 3. マルチモーダル入力（例: 画像説明）と構造化出力（JSON応答）のサンプルを追加。
 4. 後続のワンナイト人狼シナリオに向けたサンプルノートブックを準備し、API利用例として整理。

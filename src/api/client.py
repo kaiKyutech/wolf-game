@@ -8,6 +8,7 @@ from langchain_core.messages import BaseMessage
 
 from ..providers.base import BaseProvider
 from ..providers.ollama import OllamaProvider, OllamaSettings
+from ..providers.gemini import GeminiProvider, GeminiSettings
 
 
 # 共通のLLM呼び出しインターフェースを提供するラッパークラス
@@ -26,9 +27,15 @@ class LLMClient:
     @classmethod
     def from_ollama_settings(cls, **kwargs) -> "LLMClient":
         """キーワード引数でOllama設定を上書きしながらクライアントを構築する。"""
-        # キーワード引数でOllamaの接続情報を上書きしてクライアントを生成
         settings = OllamaSettings(**kwargs)
         provider = OllamaProvider(settings=settings)
+        return cls.from_provider(provider)
+
+    @classmethod
+    def from_gemini_settings(cls, **kwargs) -> "LLMClient":
+        """キーワード引数でGemini設定を上書きしながらクライアントを構築する。"""
+        settings = GeminiSettings(**kwargs)
+        provider = GeminiProvider(settings=settings)
         return cls.from_provider(provider)
 
     def invoke(self, messages: Sequence[BaseMessage], **kwargs) -> BaseMessage:
@@ -54,5 +61,9 @@ class LLMClient:
 
 def create_default_ollama_client() -> LLMClient:
     """環境変数ベースの設定でOllamaクライアントを生成する。"""
-    # 環境変数ベースの設定でOllamaクライアントを生成
     return LLMClient.from_provider(OllamaProvider())
+
+
+def create_default_gemini_client() -> LLMClient:
+    """環境変数ベースの設定でGeminiクライアントを生成する。"""
+    return LLMClient.from_provider(GeminiProvider())
