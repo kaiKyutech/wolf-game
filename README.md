@@ -13,3 +13,16 @@
 - Ollama と Gemini の呼び出し例
 - ストリーミング応答の例
 
+
+## CLI で試す
+`config/models.yaml` の設定名を指定して以下の形式で実行できます。
+
+```bash
+python -m scripts.run_chat <model_name> "<system_prompt>" "<user_prompt>"
+```
+
+例:
+
+```bash
+python -m scripts.run_chat ollama_gemma3-27b "あなたは丁寧な研究員です" "自己紹介してください"
+```
