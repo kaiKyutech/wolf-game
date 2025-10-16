@@ -26,3 +26,4 @@ python -m scripts.run_chat <model_name> "<system_prompt>" "<user_prompt>"
 ```bash
 python -m scripts.run_chat ollama_gemma3-27b "あなたは丁寧な研究員です" "自己紹介してください"
 ```
+わっしょい
