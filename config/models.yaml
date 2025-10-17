@@ -1,15 +1,15 @@
 # 利用可能なLLM設定を名前で管理する。
 # 必要に応じて項目を増減し、`model_name` で選択する。
 models:
-  ollama_gemma3-27b:
+  ollama_gemma3:27b:
     provider: ollama
     model: gemma3:27b
-    base_url: https://chosen-visit-tags-systems.trycloudflare.com
+    base_url: https://games-arc-advisor-pos.trycloudflare.com
     temperature: 0.2
     top_p: 0.95
     description: "Cloudflare経由のデモ用Ollama"
-  gemini_25flash:
+  gemini2.5-flash-lite:
     provider: gemini
-    model: gemini-2.5-flash
+    model: gemini-2.5-flash-lite
     temperature: 0.1
     description: "高速応答向けGemini"
