@@ -1,0 +1,3 @@
+model_name: ollama_gemma3-27b
+log_filename: basic_demo.jsonl
+prompts_file: prompts.yaml
