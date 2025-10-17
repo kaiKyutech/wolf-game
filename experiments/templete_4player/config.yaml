@@ -1,0 +1,7 @@
+log_filename: logfile.jsonl
+agents:
+  A: ollama_gemma3:27b
+  B: gemini2.5-flash-lite
+  C: ollama_gemma3:27b
+  D: gemini2.5-flash-lite
+prompts_file: prompts.yaml
