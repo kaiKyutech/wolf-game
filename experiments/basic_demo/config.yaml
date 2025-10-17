@@ -1,4 +1,4 @@
-log_filename: basic_demo.jsonl
+log_filename: logfile.jsonl
 agents:
   narrator: ollama_gemma3:27b
   seer: gemini2.5-flash-lite

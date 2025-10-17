@@ -139,3 +139,64 @@ class ExperimentRunner:
             print(f"[{speaker}] -> {messages[-1].content}")
 
         print(f"ログを保存しました: {log_path}")
+
+
+def load_yaml(path: Path) -> Dict[str, Any]:
+    """YAMLファイルを読み込み、辞書として返す。"""
+
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def load_next_run_index(log_path: Path) -> int:
+    """既存ログを参照し、次に利用する run 番号を決定する。"""
+
+    if not log_path.exists():
+        return 1
+
+    last_entry: str | None = None
+    with log_path.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            stripped = line.strip()
+            if stripped:
+                last_entry = stripped
+
+    if not last_entry:
+        return 1
+
+    try:
+        record = orjson.loads(last_entry)
+        return int(record.get("run", 0)) + 1
+    except Exception:
+        return 1
+
+
+def setup_experiment_environment(
+    config_path: Path,
+    prompts_path: Path,
+    *,
+    log_dir: Path | None = None,
+    default_log_name: str = "experiment.jsonl",
+) -> Tuple[Dict[str, Any], Dict[str, Any], Path, int]:
+    """共通的な設定読込とログ設定の初期化を行う。"""
+
+    config = load_yaml(config_path)
+    prompts = load_yaml(prompts_path)
+
+    target_dir = log_dir or config_path.parent / "logs"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    log_name = config.get("log_filename", default_log_name)
+    log_path = target_dir / log_name
+    run_index = load_next_run_index(log_path)
+
+    return config, prompts, log_path, run_index
+
+
+__all__ = [
+    "Turn",
+    "ExperimentConfig",
+    "ExperimentRunner",
+    "load_yaml",
+    "load_next_run_index",
+    "setup_experiment_environment",
+]

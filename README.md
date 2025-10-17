@@ -29,12 +29,12 @@ python -m scripts.run_chat ollama_gemma3-27b "あなたは丁寧な研究員で�
 
 ## Experiments
 
-人狼ゲームなどシナリオベースの検証は `experiments/` フォルダで管理します。`basic_demo` を例に、`run.py` の中でどのモデルをどのエージェントへ割り当て、どの順番で `invoke()` するかを明示的に記述します。
+人狼ゲームの開発は `experiments/` が中心です。シナリオの作り方や編集すべきファイルはすべて `experiments/README.md` にまとめていますので、最初にそちらを確認してください。
 
-実験の実行例:
+サンプルとして `basic_demo` が用意されています。
 
 ```bash
 python -m experiments.basic_demo.run
 ```
 
-詳細なルールや新しいシナリオの追加方法は `experiments/README.md` を参照してください。
+`run.py` を開くとフローの書き方、`config.yaml` / `prompts.yaml` を見ると設定方法が理解できます。その他の共通ユーティリティやログ運用の詳細も `experiments/README.md` に記載しています。
