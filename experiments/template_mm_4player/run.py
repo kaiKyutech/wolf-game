@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from experiments.runner import (
     collect_image_paths,
     load_image_base64,
+    next_sequential_log_path,
     setup_experiment_environment,
     strip_code_fence,
 )
@@ -20,9 +21,10 @@ BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config.yaml"
 PROMPTS_PATH = BASE_DIR / "prompts.yaml"
 LOGS_DIR = BASE_DIR / "logs"
-DEFAULT_LOG_NAME = "templete_4player.jsonl"
+LOG_FILE_BASE = "logfile"
 PLAY_ORDER = ["A", "B", "C", "D"]
 DISCUSSION_ROUNDS = 2
+TOTAL_MATCHES = 10
 IMAGE_DIR = BASE_DIR / "images"
 VOTE_PROMPT = (
     "【投票フェーズ】\n"
@@ -237,13 +239,16 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
 
 
 def main() -> None:
-    config, prompts, log_path, run_index = setup_experiment_environment(
+    config, prompts, _, _ = setup_experiment_environment(
         CONFIG_PATH,
         PROMPTS_PATH,
         log_dir=LOGS_DIR,
-        default_log_name=DEFAULT_LOG_NAME,
+        default_log_name=f"{LOG_FILE_BASE}.jsonl",
     )
-    run(config, prompts, log_path, run_index)
+    log_path = next_sequential_log_path(LOGS_DIR, LOG_FILE_BASE)
+    for run_index in range(1, TOTAL_MATCHES + 1):
+        print(f"=== Starting run #{run_index} (log: {log_path.name}) ===")
+        run(config, prompts, log_path, run_index)
 
 
 if __name__ == "__main__":

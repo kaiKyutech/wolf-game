@@ -249,6 +249,31 @@ def create_human_message_with_images(
     return HumanMessage(content=content)
 
 
+def next_sequential_log_path(
+    directory: Path,
+    base_name: str,
+    *,
+    extension: str = ".jsonl",
+) -> Path:
+    """directory 内で base_name_001... のような連番ファイルパスを生成する。"""
+
+    directory.mkdir(parents=True, exist_ok=True)
+
+    indices: list[int] = []
+    pattern = f"{base_name}_*{extension}"
+    for path in directory.glob(pattern):
+        stem_suffix = path.stem.split("_")[-1]
+        if stem_suffix.isdigit():
+            indices.append(int(stem_suffix))
+
+    next_index = max(indices) + 1 if indices else 1
+    candidate = directory / f"{base_name}_{next_index:03d}{extension}"
+    while candidate.exists():
+        next_index += 1
+        candidate = directory / f"{base_name}_{next_index:03d}{extension}"
+    return candidate
+
+
 __all__ = [
     "Turn",
     "ExperimentConfig",
@@ -260,4 +285,5 @@ __all__ = [
     "load_image_base64",
     "collect_image_paths",
     "create_human_message_with_images",
+    "next_sequential_log_path",
 ]
