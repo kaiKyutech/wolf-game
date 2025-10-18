@@ -1,0 +1,7 @@
+log_filename: logfile.jsonl
+agents:
+  A: ollama_gemma3:27b
+  B: ollama_gemma3:27b
+  C: ollama_gemma3:27b
+  D: ollama_gemma3:27b
+prompts_file: prompts.yaml
