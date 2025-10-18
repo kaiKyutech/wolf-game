@@ -3,9 +3,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import orjson
+from orjson import JSONDecodeError
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from experiments.runner import (
@@ -24,14 +25,8 @@ LOGS_DIR = BASE_DIR / "logs"
 LOG_FILE_BASE = "logfile"
 PLAY_ORDER = ["A", "B", "C", "D"]
 DISCUSSION_ROUNDS = 2
-TOTAL_MATCHES = 10
+TOTAL_MATCHES = 1
 IMAGE_DIR = BASE_DIR / "images"
-VOTE_PROMPT = (
-    "【投票フェーズ】\n"
-    "――議論の時間が終了しました。これから追放すると思うプレイヤーを1人選んでください。\n"
-    "あなたの目的は『自分が生き残ること』です。これまでの議論を踏まえ、最も怪しい人物を判断し、"
-    "JSON の `vote` フィールドに追放したいプレイヤー名を必ず記入してください。"
-)
 
 
 def format_history(history: List[Dict[str, str]]) -> str:
@@ -43,18 +38,44 @@ def format_history(history: List[Dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def build_user_prompt(template: str, history_text: str, *, append_vote: bool = False) -> str:
-    """会話履歴プレースホルダを埋め込み、必要に応じて投票指示を付与。"""
+def build_user_prompt(template: str, history_text: str) -> str:
+    """会話履歴プレースホルダを埋め込む。"""
 
     base_template = template.rstrip()
-    if append_vote:
-        base_template = f"{base_template}\n\n{VOTE_PROMPT}"
-
     if "{conversation_history}" in base_template:
         return base_template.replace("{conversation_history}", history_text)
     return (
         f"{base_template}\n\n---\n【現在の会話履歴】\n{history_text}\n---\n"
     )
+
+def invoke_with_retries(
+    client,
+    messages: List[HumanMessage],
+    *,
+    require_vote: bool,
+    max_retries: int,
+) -> Tuple[Dict[str, str] | None, str | None, Exception | None]:
+    """LLM呼び出しとJSONパースを指定回数まで再試行する。"""
+
+    last_exc: Exception | None = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.invoke(messages)
+            content = getattr(response, "content", str(response))
+            parsed = parse_agent_output(content, require_vote=require_vote)
+            return parsed, content, None
+        except (ValueError, JSONDecodeError) as exc:
+            last_exc = exc
+            print(
+                f"Retryable parse error (attempt {attempt}/{max_retries}): {exc}"
+            )
+        except Exception as exc:
+            last_exc = exc
+            print(
+                f"Retryable invocation error (attempt {attempt}/{max_retries}): {exc}"
+            )
+    return None, None, last_exc
+
 
 def parse_agent_output(raw_content: str, *, require_vote: bool = False) -> Dict[str, str]:
     """エージェントのJSON出力を辞書化する。"""
@@ -77,12 +98,14 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
     discussion_history_snapshot: List[Dict[str, str]] = []
     turn_counter = 0
     image_paths = collect_image_paths(IMAGE_DIR)
+    max_retries = int(config.get("max_retries", 3))
 
     # 議論フェーズ
     for round_index in range(1, DISCUSSION_ROUNDS + 1):
         for agent_id in PLAY_ORDER:
             model_alias = config["agents"][agent_id]
-            prompt_bundle = prompts["agents"][agent_id]
+            agent_prompts = prompts["agents"][agent_id]
+            prompt_bundle = agent_prompts["discussion"]
 
             client = create_client_from_model_name(model_alias)
             system_prompt = prompt_bundle["system_prompt"].strip()
@@ -91,7 +114,6 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
             user_prompt = build_user_prompt(
                 user_prompt_template,
                 conversation_text,
-                append_vote=False,
             )
 
             messages = [
@@ -110,15 +132,25 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
                 ),
             ]
 
-            response = client.invoke(messages)
-            content = getattr(response, "content", str(response))
-
-            try:
-                parsed = parse_agent_output(content, require_vote=False)
-            except Exception as exc:
-                print(f"ERROR: {agent_id} の応答をJSONとして解析できませんでした -> {exc}")
-                print(f"RAW RESPONSE: {content}")
-                raise
+            parsed, content, error = invoke_with_retries(
+                client, messages, require_vote=False, max_retries=max_retries
+            )
+            if parsed is None:
+                print("WARNING: {agent_id} の議論応答を取得できなかったためスキップします。")
+                record = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "run": run_index,
+                    "round": round_index,
+                    "phase": "discussion",
+                    "turn_index": turn_counter + 1,
+                    "agent": agent_id,
+                    "model_name": model_alias,
+                    "error": str(error),
+                    "raw_response": content,
+                }
+                with log_path.open("a", encoding="utf-8") as fh:
+                    fh.write(orjson.dumps(record).decode("utf-8") + "\n")
+                continue
 
             history.append({
                 "agent": agent_id,
@@ -157,7 +189,8 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
     vote_round = DISCUSSION_ROUNDS + 1
     for agent_id in PLAY_ORDER:
         model_alias = config["agents"][agent_id]
-        prompt_bundle = prompts["agents"][agent_id]
+        agent_prompts = prompts["agents"][agent_id]
+        prompt_bundle = agent_prompts["vote"]
 
         client = create_client_from_model_name(model_alias)
         system_prompt = prompt_bundle["system_prompt"].strip()
@@ -165,7 +198,6 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
         user_prompt = build_user_prompt(
             user_prompt_template,
             history_text,
-            append_vote=True,
         )
 
         messages = [
@@ -184,15 +216,25 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
             ),
         ]
 
-        response = client.invoke(messages)
-        content = getattr(response, "content", str(response))
-
-        try:
-            parsed = parse_agent_output(content, require_vote=True)
-        except Exception as exc:
-            print(f"ERROR: {agent_id} の投票応答をJSONとして解析できませんでした -> {exc}")
-            print(f"RAW RESPONSE: {content}")
-            raise
+        parsed, content, error = invoke_with_retries(
+            client, messages, require_vote=True, max_retries=max_retries
+        )
+        if parsed is None:
+            print("WARNING: {agent_id} の投票応答を取得できなかったためスキップします。")
+            record = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "run": run_index,
+                "round": vote_round,
+                "phase": "vote",
+                "turn_index": turn_counter + 1,
+                "agent": agent_id,
+                "model_name": model_alias,
+                "error": str(error),
+                "raw_response": content,
+            }
+            with log_path.open("a", encoding="utf-8") as fh:
+                fh.write(orjson.dumps(record).decode("utf-8") + "\n")
+            continue
 
         votes.append({"agent": agent_id, "vote": parsed["vote"]})
         turn_counter += 1

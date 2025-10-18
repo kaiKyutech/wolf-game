@@ -19,7 +19,7 @@ class GeminiSettings(BaseSettings):
     api_key: str = Field(..., env="GEMINI_API_KEY", description="Google Generative AI APIキー")
     temperature: float = Field(default=0.3, ge=0.0, le=2.0)
     top_p: float = Field(default=0.95, ge=0.0, le=1.0)
-    max_output_tokens: Optional[int] = Field(default=None, description="最大出力トークン数")
+    max_output_tokens: Optional[int] = Field(default=5000, description="最大出力トークン数")
 
     model_config = SettingsConfigDict(env_prefix="GEMINI_", extra="ignore")
 
