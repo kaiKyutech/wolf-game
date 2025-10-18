@@ -1,29 +1,26 @@
 # Experiments
 
-人狼ゲームの実験はすべてこのディレクトリで行います。`run.py` を中心にシナリオを組み立て、`config.yaml` と `prompts.yaml` でモデル割り当てとプロンプトを差し替えていきます。
+このディレクトリには、LangChain を使った人狼ゲーム実験のテンプレートがまとまっています。
+主に以下の2パターンを用意しています。
 
-## 編集するファイル
-- `run.py`
-  - 実験の進行フローを書くメインファイルです。
-  - `setup_experiment_environment()` で設定とログを読み込み、返ってくる `config` / `prompts` を元にターン処理を記述します。
-  - `create_client_from_model_name()` と `invoke()` を使い、各エージェントの発話を生成します。
-- `config.yaml`
-  - `agents` のキー名をエージェントIDとして定義し、対応するモデル（`config/models.yaml` のエイリアス）を指定します。
-  - ログファイル名を変えたい場合は `log_filename` を追加します。
-- `prompts.yaml`
-  - `agents.<agent_id>.system_prompt` / `user_prompt` にそれぞれの台詞を記述します。
+- `template_4player/`: テキストのみで4人プレイの議論 → 投票をシミュレート。
+- `template_mm_4player/`: テキスト + 画像（images/ 配下のPNG/JPEG）を参照させるマルチモーダル版。議論と投票を2フェーズに分け、投票フェーズでは必ず1名に投票するようプロンプトを強化しています。
 
-## 編集しないファイル
-- `logs/` ディレクトリ配下の JSONL ファイル（`run.py` が追記します）
-- `runner.py` の既存ロジック（新しいユーティリティを追加したい場合のみ要調整）
+## 実行手順
 
-## 最小の手順
-1. `basic_demo/` を参考に、必要ならフォルダを複製します。
-2. `config.yaml` と `prompts.yaml` のエージェントIDを揃えつつ、内容を調整します。
-3. `run.py` でプレイヤー順やターンの構成を記述します。
-4. `python -m experiments.<scenario>.run` を実行し、`logs/` に結果が追記されることを確認します。
+各テンプレートの `run.py` は、`TOTAL_MATCHES`（デフォルト1）だけ連続試合を回し、`logs/` に `logfile_001.jsonl`, `logfile_002.jsonl` … のように連番で保存します。
 
-実行例:
 ```bash
-python -m experiments.basic_demo.run
+python -m experiments.template_mm_4player.run
 ```
+
+設定は `config.yaml` で行います。モデル割り当て（`agents`）、再試行回数（`max_retries`、デフォルト3）、プロンプトファイル（`prompts.yaml`）などが指定できます。
+
+## 分析ツール
+
+各テンプレートの `analysis/` ディレクトリに、解析向けツールを揃えています。
+
+- `analysis.ipynb`: `../logs/*.jsonl` を読み込み、試合ごとの `vote_summary` から簡易的な勝率や投票傾向を確認するノートブック。
+- `viewer_app.py`: Streamlit アプリ。`streamlit run experiments/template_mm_4player/analysis/viewer_app.py` で起動し、run ごとの議論ログ・thought・vote・サマリーを折りたたみ形式で閲覧できます。
+
+ノートブック側で深入り（ワード単位の分析など）を行い、Streamlit で異常な試合の生データを簡単に掘り下げる運用を想定しています。ログファイルが追加されるたびにノートブック/Streamlit を再実行すれば最新状況を反映できます。
