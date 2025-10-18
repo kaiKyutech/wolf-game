@@ -66,6 +66,7 @@ def parse_agent_output(raw_content: str, *, require_vote: bool = False) -> Dict[
 def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
     history: List[Dict[str, str]] = []
     votes: List[Dict[str, str]] = []
+    discussion_history_snapshot: List[Dict[str, str]] = []
     turn_counter = 0
 
     # 議論フェーズ
@@ -128,6 +129,9 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
             with log_path.open("a", encoding="utf-8") as fh:
                 fh.write(orjson.dumps(record).decode("utf-8") + "\n")
 
+    discussion_history_snapshot = list(history)
+    history_text = format_history(discussion_history_snapshot)
+
     # 投票フェーズ
     vote_round = DISCUSSION_ROUNDS + 1
     for agent_id in PLAY_ORDER:
@@ -137,10 +141,9 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
         client = create_client_from_model_name(model_alias)
         system_prompt = prompt_bundle["system_prompt"].strip()
         user_prompt_template = prompt_bundle["user_prompt"]
-        conversation_text = format_history(history)
         user_prompt = build_user_prompt(
             user_prompt_template,
-            conversation_text,
+            history_text,
             append_vote=True,
         )
 
@@ -159,11 +162,6 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
             print(f"RAW RESPONSE: {content}")
             raise
 
-        history.append({
-            "agent": agent_id,
-            "thought": parsed["thought"],
-            "speech": parsed["speech"],
-        })
         votes.append({"agent": agent_id, "vote": parsed["vote"]})
         turn_counter += 1
 
@@ -183,7 +181,7 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
             "system_prompt": system_prompt,
             "user_prompt": user_prompt,
             "raw_response": content,
-            "visible_history": format_history(history),
+            "visible_history": history_text,
         }
 
         with log_path.open("a", encoding="utf-8") as fh:
