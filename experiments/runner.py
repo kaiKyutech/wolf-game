@@ -1,9 +1,10 @@
 """実験フローを共通化するためのユーティリティ。"""
 from __future__ import annotations
 
+import base64
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
 import orjson
 import yaml
@@ -206,6 +207,48 @@ def setup_experiment_environment(
     return config, prompts, log_path, run_index
 
 
+def load_image_base64(path: Path) -> str:
+    """画像ファイルを data URI 付きの base64 文字列へ変換する。"""
+
+    suffix = path.suffix.lower()
+    if suffix in {".jpg", ".jpeg"}:
+        mime = "image/jpeg"
+    else:
+        mime = "image/png"
+    encoded = base64.b64encode(path.read_bytes()).decode("utf-8")
+    return f"data:{mime};base64,{encoded}"
+
+
+def collect_image_paths(
+    directory: Path,
+    *,
+    suffixes: Sequence[str] | None = None,
+) -> List[Path]:
+    """ディレクトリ内の画像ファイルを拡張子フィルタで収集する。"""
+
+    valid = tuple(s.lower() for s in (suffixes or (".png", ".jpg", ".jpeg")))
+    if not directory.exists():
+        return []
+    return sorted(
+        p
+        for p in directory.iterdir()
+        if p.is_file() and p.suffix.lower() in valid
+    )
+
+
+def create_human_message_with_images(
+    text: str,
+    image_paths: Sequence[Path],
+) -> HumanMessage:
+    """テキストと画像を混在させた HumanMessage を生成する。"""
+
+    content: List[Dict[str, object]] = [{"type": "text", "text": text.strip()}]
+    for path in image_paths:
+        data_uri = load_image_base64(path)
+        content.append({"type": "image_url", "image_url": {"url": data_uri}})
+    return HumanMessage(content=content)
+
+
 __all__ = [
     "Turn",
     "ExperimentConfig",
@@ -214,4 +257,7 @@ __all__ = [
     "load_next_run_index",
     "strip_code_fence",
     "setup_experiment_environment",
+    "load_image_base64",
+    "collect_image_paths",
+    "create_human_message_with_images",
 ]

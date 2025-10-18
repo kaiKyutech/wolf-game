@@ -4,7 +4,7 @@ models:
   ollama_gemma3:27b:
     provider: ollama
     model: gemma3:27b
-    base_url: https://games-arc-advisor-pos.trycloudflare.com
+    base_url: https://accounting-closer-reg-amended.trycloudflare.com
     temperature: 0.2
     top_p: 0.95
     description: "Cloudflare経由のデモ用Ollama"

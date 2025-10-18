@@ -1,4 +1,4 @@
-"""4人用ワンナイト人狼テンプレートの進行フロー。"""
+"""画像付き4人用ワンナイト人狼テンプレートの進行フロー。"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -8,7 +8,12 @@ from typing import Dict, List
 import orjson
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from experiments.runner import setup_experiment_environment, strip_code_fence
+from experiments.runner import (
+    collect_image_paths,
+    load_image_base64,
+    setup_experiment_environment,
+    strip_code_fence,
+)
 from src.config import create_client_from_model_name
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -18,6 +23,7 @@ LOGS_DIR = BASE_DIR / "logs"
 DEFAULT_LOG_NAME = "templete_4player.jsonl"
 PLAY_ORDER = ["A", "B", "C", "D"]
 DISCUSSION_ROUNDS = 2
+IMAGE_DIR = BASE_DIR / "images"
 VOTE_PROMPT = (
     "【投票フェーズ】\n"
     "――議論の時間が終了しました。これから追放すると思うプレイヤーを1人選んでください。\n"
@@ -68,6 +74,7 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
     votes: List[Dict[str, str]] = []
     discussion_history_snapshot: List[Dict[str, str]] = []
     turn_counter = 0
+    image_paths = collect_image_paths(IMAGE_DIR)
 
     # 議論フェーズ
     for round_index in range(1, DISCUSSION_ROUNDS + 1):
@@ -87,7 +94,18 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
 
             messages = [
                 SystemMessage(content=system_prompt),
-                HumanMessage(content=user_prompt.strip()),
+                HumanMessage(
+                    content=[
+                        {"type": "text", "text": user_prompt.strip()},
+                        *[
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": load_image_base64(path)},
+                            }
+                            for path in image_paths
+                        ],
+                    ]
+                ),
             ]
 
             response = client.invoke(messages)
@@ -119,9 +137,10 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
                 "model_name": model_alias,
                 "vote": parsed["vote"],
                 "thought": parsed["thought"],
-                "speech": parsed["speech"],               
+                "speech": parsed["speech"],
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
+                "images": [path.name for path in image_paths],
                 "raw_response": content,
                 "visible_history": format_history(history),
             }
@@ -149,7 +168,18 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
 
         messages = [
             SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt.strip()),
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": user_prompt.strip()},
+                    *[
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": load_image_base64(path)},
+                        }
+                        for path in image_paths
+                    ],
+                ]
+            ),
         ]
 
         response = client.invoke(messages)
@@ -175,11 +205,12 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
             "turn_index": turn_counter,
             "agent": agent_id,
             "model_name": model_alias,
-            "vote": parsed["vote"],     
+            "vote": parsed["vote"],
             "thought": parsed["thought"],
-            "speech": parsed["speech"],       
+            "speech": parsed["speech"],
             "system_prompt": system_prompt,
             "user_prompt": user_prompt,
+            "images": [path.name for path in image_paths],
             "raw_response": content,
             "visible_history": history_text,
         }
