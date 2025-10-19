@@ -17,14 +17,17 @@ DEFAULT_MODELS_PATH = PROJECT_ROOT / "config" / "models.yaml"
 class ModelConfig(BaseModel):
     """単一モデル設定。"""
 
-    provider: Literal["ollama", "gemini"] = Field(description="利用するプロバイダ識別子")
+    provider: Literal["ollama", "gemini", "openai", "anthropic"] = Field(
+        description="利用するプロバイダ識別子"
+    )
     model: str = Field(description="モデル名")
     base_url: Optional[str] = Field(default=None, description="Ollamaなどで利用するベースURL")
     temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
     top_p: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     keep_alive: Optional[str] = Field(default=None, description="Ollamaのkeep-alive設定")
     streaming: Optional[bool] = Field(default=None, description="ストリーミング応答を有効化")
-    max_output_tokens: Optional[int] = Field(default=None, description="Geminiの最大出力トークン数")
+    max_output_tokens: Optional[int] = Field(default=None, description="最大出力トークン数")
+    max_tokens: Optional[int] = Field(default=None, description="OpenAI出力トークン上限")
     description: Optional[str] = Field(default=None, description="用途のメモ")
 
     model_config = ConfigDict(extra="allow")
@@ -85,4 +88,8 @@ def create_client_from_model_name(name: str, *, config_path: Union[Path, str, No
         return LLMClient.from_ollama_settings(**kwargs)
     if model_config.provider == "gemini":
         return LLMClient.from_gemini_settings(**kwargs)
+    if model_config.provider == "openai":
+        return LLMClient.from_openai_settings(**kwargs)
+    if model_config.provider == "anthropic":
+        return LLMClient.from_anthropic_settings(**kwargs)
     raise ValueError(f"未対応のプロバイダ: {model_config.provider}")

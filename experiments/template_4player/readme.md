@@ -1,33 +1,26 @@
-# Template (4-Player, Multimodal)
+# Template (4-Player, Text Only)
 
-このテンプレートでは、`templete_4player` と同じ人狼シナリオに加えて、画像入力を扱う実験を行う想定です。今後着手する項目を整理し、設計方針をここにメモします。
+テキストのみで 4 人版ワンナイト人狼を実験するテンプレートです。`run.py` では議論フェーズと投票フェーズを明確に分離し、ログを連番の JSONL として保存します。追加の画像入力は使用しません。
 
-## やりたいこと
-- 4人構成（A/B/C/D）の議論＋投票フローは既存テンプレートと同じ。
-- 各プレイヤーが参照する「手札」「状況説明」「証拠画像」などをローカル `images/` フォルダに置き、プロンプト内で提示したい。
-- LangChain のマルチモーダル仕様に従い、テキスト＋画像（base64）を `HumanMessage` に含める運用を試す。
-
-## フォルダ構成（案）
+## フォルダ構成
 ```
-template_mm_4player/
-  ├── config.yaml        # モデル割り当ても既存テンプレートと同様
-  ├── prompts.yaml       # 基本プロンプトはそのまま流用（画像の説明文を追加するか検討）
-  ├── images/            # 実験で使う画像を配置
-  │    ├── clue_a.png
-  │    ├── clue_b.png
-  │    └── ...
-  ├── run.py             # 画像読み込み＆base64エンコードを行うよう改修予定
-  └── readme.md          # この設計メモ
+template_4player/
+  ├── config.yaml        # モデル割り当て・再試行回数などの設定
+  ├── prompts.yaml       # プレイヤーごとの議論/投票プロンプト定義
+  ├── run.py             # 試合フロー（TOTAL_MATCHES 分を連続実行）
+  ├── analysis/
+  │    ├── analysis.ipynb   # 勝率など簡易集計ノートブック
+  │    └── viewer_app.py    # Streamlit ログビューア
+  └── logs/             # 実行結果（logfile_001.jsonl など連番）
 ```
-- 画像の種類：役職カードのスクリーンショット、議論ログのスクリーンショット、現場写真など、用途に応じて増減。
-- 画像はローカルパスから開き、`base64.b64encode()` でエンコードして `data:image/png;base64,...` 形式にする方針。
 
-## 実装メモ（まだコード変更なし）
-1. `run.py` で画像を扱うユーティリティ関数を用意（例：`load_image_b64(path)`）。
-2. ユーザープロンプトに `{image: clue_a.png}` のような記法で挿入できる仕組みを検討。
-3. `build_user_prompt()` や `parse_agent_output()` のフローは基本据え置き。ただし画像付きメッセージを構築するフェーズが追加される。
-4. 画像を参照するかどうかは config で切り替えられるようにする（A/B/C/D それぞれに `images` キーを持たせるなど）。
+## 実験の流れ
+1. `config.yaml` で `agents` のモデル名や `max_retries` を調整。
+2. `python -m experiments.template_4player.run` を実行すると、`TOTAL_MATCHES` 分の試合が `logs/` に記録されます（既存ログを上書きせず、連番で新規作成）。
+3. `analysis/analysis.ipynb` で勝率集計、`streamlit run analysis/viewer_app.py` で run ごとの議論ログを参照できます。
 
-## 現状
-- フォルダだけ作成済み。コード・プロンプトは既存テンプレに近い状態でコピーしている。
-- まずは `images/` を作成し、サンプル画像を入れてから `run.py` のマルチモーダル対応に着手する予定。
+## プロンプト構成
+- `discussion` ブロック: `thought` / `speech` のみを返すよう指示。
+- `vote` ブロック: 役職情報を再掲し、`thought` / `speech` / `vote` を必ず JSON で返すよう指示。
+
+このテンプレートをベースに、テキストのみのシナリオを複製・改変して実験を追加してください。

@@ -9,6 +9,8 @@ from langchain_core.messages import BaseMessage
 from ..providers.base import BaseProvider
 from ..providers.ollama import OllamaProvider, OllamaSettings
 from ..providers.gemini import GeminiProvider, GeminiSettings
+from ..providers.openai import OpenAIProvider, OpenAISettings
+from ..providers.anthropic import AnthropicProvider, AnthropicSettings
 
 
 # 共通のLLM呼び出しインターフェースを提供するラッパークラス
@@ -38,6 +40,20 @@ class LLMClient:
         provider = GeminiProvider(settings=settings)
         return cls.from_provider(provider)
 
+    @classmethod
+    def from_openai_settings(cls, **kwargs) -> "LLMClient":
+        """OpenAI設定を上書きしながらクライアントを構築する。"""
+        settings = OpenAISettings(**kwargs)
+        provider = OpenAIProvider(settings=settings)
+        return cls.from_provider(provider)
+
+    @classmethod
+    def from_anthropic_settings(cls, **kwargs) -> "LLMClient":
+        """Anthropic設定を上書きしながらクライアントを構築する。"""
+        settings = AnthropicSettings(**kwargs)
+        provider = AnthropicProvider(settings=settings)
+        return cls.from_provider(provider)
+
     def invoke(self, messages: Sequence[BaseMessage], **kwargs) -> BaseMessage:
         # 同期的にメッセージを送信し最終応答を取得
         return self._chat_model.invoke(messages, **kwargs)
@@ -57,4 +73,3 @@ class LLMClient:
         # 非同期ストリーミングでトークンを逐次取得
         async for chunk in self._chat_model.astream(messages, **kwargs):
             yield getattr(chunk, "content", str(chunk))
-

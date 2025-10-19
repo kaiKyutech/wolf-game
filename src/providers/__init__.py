@@ -2,6 +2,8 @@
 from .base import BaseProvider
 from .ollama import OllamaProvider, OllamaSettings
 from .gemini import GeminiProvider, GeminiSettings
+from .openai import OpenAIProvider, OpenAISettings
+from .anthropic import AnthropicProvider, AnthropicSettings
 
 __all__ = [
     "BaseProvider",
@@ -9,4 +11,8 @@ __all__ = [
     "OllamaSettings",
     "GeminiProvider",
     "GeminiSettings",
+    "OpenAIProvider",
+    "OpenAISettings",
+    "AnthropicProvider",
+    "AnthropicSettings",
 ]
