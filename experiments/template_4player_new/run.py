@@ -1,4 +1,4 @@
-"""画像付き4人用ワンナイト人狼テンプレートの進行フロー。"""
+"""テキストのみ4人用ワンナイト人狼テンプレートの進行フロー。"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -10,8 +10,6 @@ from orjson import JSONDecodeError
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from experiments.runner import (
-    collect_image_paths,
-    load_image_base64,
     next_sequential_log_path,
     setup_experiment_environment,
     strip_code_fence,
@@ -25,8 +23,7 @@ LOGS_DIR = BASE_DIR / "logs"
 LOG_FILE_BASE = "logfile"
 PLAY_ORDER = ["A", "B", "C", "D"]
 DISCUSSION_ROUNDS = 2
-TOTAL_MATCHES = 1
-IMAGE_DIR = BASE_DIR / "images"
+TOTAL_MATCHES = 5
 
 
 def format_history(history: List[Dict[str, str]]) -> str:
@@ -97,7 +94,6 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
     votes: List[Dict[str, str]] = []
     discussion_history_snapshot: List[Dict[str, str]] = []
     turn_counter = 0
-    image_paths = collect_image_paths(IMAGE_DIR)
     max_retries = int(config.get("max_retries", 3))
     clients = {
         agent_id: create_client_from_model_name(config["agents"][agent_id])
@@ -122,18 +118,7 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
 
             messages = [
                 SystemMessage(content=system_prompt),
-                HumanMessage(
-                    content=[
-                        {"type": "text", "text": user_prompt.strip()},
-                        *[
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": load_image_base64(path)},
-                            }
-                            for path in image_paths
-                        ],
-                    ]
-                ),
+                HumanMessage(content=[{"type": "text", "text": user_prompt.strip()}])
             ]
 
             parsed, content, error = invoke_with_retries(
@@ -178,7 +163,6 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
                 "speech": parsed["speech"],
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
-                "images": [path.name for path in image_paths],
                 "raw_response": content,
                 "visible_history": format_history(history),
             }
@@ -206,18 +190,7 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
 
         messages = [
             SystemMessage(content=system_prompt),
-            HumanMessage(
-                content=[
-                    {"type": "text", "text": user_prompt.strip()},
-                    *[
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": load_image_base64(path)},
-                        }
-                        for path in image_paths
-                    ],
-                ]
-            ),
+            HumanMessage(content=[{"type": "text", "text": user_prompt.strip()}]),
         ]
 
         parsed, content, error = invoke_with_retries(
@@ -258,7 +231,6 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
             "speech": parsed["speech"],
             "system_prompt": system_prompt,
             "user_prompt": user_prompt,
-            "images": [path.name for path in image_paths],
             "raw_response": content,
             "visible_history": history_text,
         }
