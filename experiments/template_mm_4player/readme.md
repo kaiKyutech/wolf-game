@@ -1,33 +1,21 @@
 # Template (4-Player, Multimodal)
 
-このテンプレートでは、`templete_4player` と同じ人狼シナリオに加えて、画像入力を扱う実験を行う想定です。今後着手する項目を整理し、設計方針をここにメモします。
+画像も扱う 4 人構成のワンナイト人狼テンプレートです。議論・投票フローはテキスト版と同じですが、各ターンで `images/` 配下のファイルをマルチモーダル入力として渡します。
 
-## やりたいこと
-- 4人構成（A/B/C/D）の議論＋投票フローは既存テンプレートと同じ。
-- 各プレイヤーが参照する「手札」「状況説明」「証拠画像」などをローカル `images/` フォルダに置き、プロンプト内で提示したい。
-- LangChain のマルチモーダル仕様に従い、テキスト＋画像（base64）を `HumanMessage` に含める運用を試す。
+- `config.yaml` は `config/models.yaml` の `ollama_gemma3:27b` を利用します。手元の Ollama エンドポイントに合わせて `base_url` を調整してください。
+- デフォルト挙動は議論 2 ラウンド → 3 回目で投票、`TOTAL_MATCHES = 1` の単一試合、リトライ上限は常に 3 回です。
+- 生成されたログは `logs/` に `logfile_001.jsonl` 形式で連番保存され、画像名もレコードに含まれます。
 
-## フォルダ構成（案）
+```bash
+python -m experiments.template_mm_4player.run --matches 3
 ```
-template_mm_4player/
-  ├── config.yaml        # モデル割り当ても既存テンプレートと同様
-  ├── prompts.yaml       # 基本プロンプトはそのまま流用（画像の説明文を追加するか検討）
-  ├── images/            # 実験で使う画像を配置
-  │    ├── clue_a.png
-  │    ├── clue_b.png
-  │    └── ...
-  ├── run.py             # 画像読み込み＆base64エンコードを行うよう改修予定
-  └── readme.md          # この設計メモ
+
+`--matches` を省略すると 1 試合だけ実行します。
+
+`analysis/analysis.ipynb` と `analysis/viewer_app.py`（Streamlit）でログの可視化・ドリルダウンが可能です。
+
+```bash
+streamlit run experiments/template_mm_4player/analysis/viewer_app.py
 ```
-- 画像の種類：役職カードのスクリーンショット、議論ログのスクリーンショット、現場写真など、用途に応じて増減。
-- 画像はローカルパスから開き、`base64.b64encode()` でエンコードして `data:image/png;base64,...` 形式にする方針。
 
-## 実装メモ（まだコード変更なし）
-1. `run.py` で画像を扱うユーティリティ関数を用意（例：`load_image_b64(path)`）。
-2. ユーザープロンプトに `{image: clue_a.png}` のような記法で挿入できる仕組みを検討。
-3. `build_user_prompt()` や `parse_agent_output()` のフローは基本据え置き。ただし画像付きメッセージを構築するフェーズが追加される。
-4. 画像を参照するかどうかは config で切り替えられるようにする（A/B/C/D それぞれに `images` キーを持たせるなど）。
-
-## 現状
-- フォルダだけ作成済み。コード・プロンプトは既存テンプレに近い状態でコピーしている。
-- まずは `images/` を作成し、サンプル画像を入れてから `run.py` のマルチモーダル対応に着手する予定。
+画像セットやプロンプトを差し替えてシナリオを拡張する際のたたき台として活用してください。

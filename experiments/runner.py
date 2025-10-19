@@ -1,6 +1,7 @@
 """実験フローを共通化するためのユーティリティ。"""
 from __future__ import annotations
 
+import argparse
 import base64
 from datetime import datetime
 from pathlib import Path
@@ -286,4 +287,25 @@ __all__ = [
     "collect_image_paths",
     "create_human_message_with_images",
     "next_sequential_log_path",
+    "parse_total_matches",
 ]
+
+
+def parse_total_matches(
+    *,
+    description: str,
+    default: int,
+) -> int:
+    """共通の --matches CLI 引数を解析し、試合数を返す。"""
+
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument(
+        "--matches",
+        type=int,
+        default=default,
+        help="Number of matches to run consecutively (default: %(default)s)",
+    )
+    args = parser.parse_args()
+    if args.matches < 1:
+        parser.error("--matches must be >= 1")
+    return args.matches

@@ -13,6 +13,7 @@ from experiments.runner import (
     collect_image_paths,
     load_image_base64,
     next_sequential_log_path,
+    parse_total_matches,
     setup_experiment_environment,
     strip_code_fence,
 )
@@ -25,8 +26,9 @@ LOGS_DIR = BASE_DIR / "logs"
 LOG_FILE_BASE = "logfile"
 PLAY_ORDER = ["A", "B", "C", "D"]
 DISCUSSION_ROUNDS = 2
-TOTAL_MATCHES = 1
+DEFAULT_TOTAL_MATCHES = 1
 IMAGE_DIR = BASE_DIR / "images"
+MAX_RETRIES = 3
 
 
 def format_history(history: List[Dict[str, str]]) -> str:
@@ -98,7 +100,7 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
     discussion_history_snapshot: List[Dict[str, str]] = []
     turn_counter = 0
     image_paths = collect_image_paths(IMAGE_DIR)
-    max_retries = int(config.get("max_retries", 3))
+    max_retries = MAX_RETRIES
     clients = {
         agent_id: create_client_from_model_name(config["agents"][agent_id])
         for agent_id in PLAY_ORDER
@@ -285,6 +287,11 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
 
 
 def main() -> None:
+    total_matches = parse_total_matches(
+        description="Run the 4-player multimodal One Night Werewolf simulation",
+        default=DEFAULT_TOTAL_MATCHES,
+    )
+
     config, prompts, _, _ = setup_experiment_environment(
         CONFIG_PATH,
         PROMPTS_PATH,
@@ -292,7 +299,7 @@ def main() -> None:
         default_log_name=f"{LOG_FILE_BASE}.jsonl",
     )
     log_path = next_sequential_log_path(LOGS_DIR, LOG_FILE_BASE)
-    for run_index in range(1, TOTAL_MATCHES + 1):
+    for run_index in range(1, total_matches + 1):
         print(f"=== Starting run #{run_index} (log: {log_path.name}) ===")
         run(config, prompts, log_path, run_index)
 
