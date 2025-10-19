@@ -1,5 +1,0 @@
-log_filename: logfile.jsonl
-agents:
-  narrator: ollama_gemma3:27b
-  seer: gemini2.5-flash-lite
-prompts_file: prompts.yaml
