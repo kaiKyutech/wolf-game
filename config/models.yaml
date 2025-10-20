@@ -4,14 +4,14 @@ models:
   ollama_gemma3:27b:
     provider: ollama
     model: gemma3:27b
-    base_url: https://compatibility-immigration-qualifications-comparative.trycloudflare.com
+    base_url: https://divorce-template-avoiding-gain.trycloudflare.com
     temperature: 0.2
     top_p: 0.95
     description: "Cloudflare経由のデモ用Ollama"
   ollama_gpt-oss:20b:
     provider: ollama
     model: gpt-oss:20b
-    base_url: https://compatibility-immigration-qualifications-comparative.trycloudflare.com
+    base_url: https://divorce-template-avoiding-gain.trycloudflare.com
     temperature: 0.2
     top_p: 0.95
     description: "Cloudflare経由のデモ用Ollama"
