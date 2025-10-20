@@ -9,6 +9,8 @@ from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
 import orjson
 import yaml
+import requests
+from requests import RequestException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from src.config import create_client_from_model_name
@@ -275,6 +277,23 @@ def next_sequential_log_path(
     return candidate
 
 
+def check_ollama_endpoint(
+    base_url: str,
+    *,
+    timeout: float = 5.0,
+    verify: bool = True,
+) -> Tuple[bool, str]:
+    """Ollama エンドポイントの `/api/version` を叩いて疎通確認を行う。"""
+
+    url = base_url.rstrip("/") + "/api/version"
+    try:
+        response = requests.get(url, timeout=timeout, verify=verify)
+        response.raise_for_status()
+        return True, response.text
+    except RequestException as exc:
+        return False, str(exc)
+
+
 __all__ = [
     "Turn",
     "ExperimentConfig",
@@ -287,6 +306,7 @@ __all__ = [
     "collect_image_paths",
     "create_human_message_with_images",
     "next_sequential_log_path",
+    "check_ollama_endpoint",
     "parse_total_matches",
 ]
 

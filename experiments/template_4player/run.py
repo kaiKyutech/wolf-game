@@ -10,12 +10,13 @@ from orjson import JSONDecodeError
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from experiments.runner import (
+    check_ollama_endpoint,
     next_sequential_log_path,
     parse_total_matches,
     setup_experiment_environment,
     strip_code_fence,
 )
-from src.config import create_client_from_model_name
+from src.config import create_client_from_model_name, get_model_config
 
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config.yaml"
@@ -53,6 +54,8 @@ def invoke_with_retries(
     *,
     require_vote: bool,
     max_retries: int,
+    agent_id: str,
+    model_alias: str,
 ) -> Tuple[Dict[str, str] | None, str | None, Exception | None]:
     """LLM呼び出しとJSONパースを指定回数まで再試行する。"""
 
@@ -73,6 +76,11 @@ def invoke_with_retries(
             print(
                 f"Retryable invocation error (attempt {attempt}/{max_retries}): {exc}"
             )
+            if "getaddrinfo failed" in str(exc).lower():
+                print(
+                    f"HINT: モデル '{model_alias}' の接続先を解決できません。"
+                    " config/models.yaml の base_url を確認してください。"
+                )
     return None, None, last_exc
 
 
@@ -91,7 +99,7 @@ def parse_agent_output(raw_content: str, *, require_vote: bool = False) -> Dict[
     return {"thought": thought, "speech": speech, "vote": vote}
 
 
-def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
+def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> bool:
     history: List[Dict[str, str]] = []
     votes: List[Dict[str, str]] = []
     discussion_history_snapshot: List[Dict[str, str]] = []
@@ -124,10 +132,17 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
             ]
 
             parsed, content, error = invoke_with_retries(
-                client, messages, require_vote=False, max_retries=max_retries
+                client,
+                messages,
+                require_vote=False,
+                max_retries=max_retries,
+                agent_id=agent_id,
+                model_alias=model_alias,
             )
             if parsed is None:
-                print("WARNING: {agent_id} の議論応答を取得できなかったためスキップします。")
+                print(
+                    f"WARNING: {agent_id} の議論応答を取得できなかったためこの試合を中断します。"
+                )
                 record = {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "run": run_index,
@@ -141,7 +156,7 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
                 }
                 with log_path.open("a", encoding="utf-8") as fh:
                     fh.write(orjson.dumps(record).decode("utf-8") + "\n")
-                continue
+                return False
 
             history.append({
                 "agent": agent_id,
@@ -196,10 +211,17 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
         ]
 
         parsed, content, error = invoke_with_retries(
-            client, messages, require_vote=True, max_retries=max_retries
+            client,
+            messages,
+            require_vote=True,
+            max_retries=max_retries,
+            agent_id=agent_id,
+            model_alias=model_alias,
         )
         if parsed is None:
-            print("WARNING: {agent_id} の投票応答を取得できなかったためスキップします。")
+            print(
+                f"WARNING: {agent_id} の投票応答を取得できなかったためこの試合を中断します。"
+            )
             record = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "run": run_index,
@@ -213,7 +235,7 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
             }
             with log_path.open("a", encoding="utf-8") as fh:
                 fh.write(orjson.dumps(record).decode("utf-8") + "\n")
-            continue
+            return False
 
         votes.append({"agent": agent_id, "vote": parsed["vote"]})
         turn_counter += 1
@@ -257,6 +279,8 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> None:
     with log_path.open("a", encoding="utf-8") as fh:
         fh.write(orjson.dumps(summary).decode("utf-8") + "\n")
 
+    return True
+
 
 def main() -> None:
     total_matches = parse_total_matches(
@@ -270,10 +294,40 @@ def main() -> None:
         log_dir=LOGS_DIR,
         default_log_name=f"{LOG_FILE_BASE}.jsonl",
     )
+
+    ollama_failures: List[Tuple[str, str, str]] = []
+    agent_models = set(config.get("agents", {}).values())
+    for model_alias in sorted(agent_models):
+        try:
+            model_config = get_model_config(model_alias)
+        except KeyError as exc:
+            ollama_failures.append(
+                (model_alias, "(unknown)", f"モデル設定が見つかりません: {exc}")
+            )
+            continue
+        if model_config.provider != "ollama":
+            continue
+        base_url = model_config.base_url or "http://localhost:11434"
+        ok, detail = check_ollama_endpoint(base_url)
+        if not ok:
+            ollama_failures.append((model_alias, base_url, detail))
+
+    if ollama_failures:
+        print("ERROR: Ollama エンドポイントへの接続確認に失敗しました。")
+        for alias, url, detail in ollama_failures:
+            print(f" - {alias}: base_url={url} -> {detail}")
+        print(
+            "config/models.yaml の base_url が最新のトンネル URL か、"
+            "証明書エラーが発生していないかを確認してください。"
+        )
+        return
+
     log_path = next_sequential_log_path(LOGS_DIR, LOG_FILE_BASE)
     for run_index in range(1, total_matches + 1):
         print(f"=== Starting run #{run_index} (log: {log_path.name}) ===")
-        run(config, prompts, log_path, run_index)
+        success = run(config, prompts, log_path, run_index)
+        if not success:
+            print(f"=== Run #{run_index} failed. Moving to next match. ===")
 
 
 if __name__ == "__main__":
