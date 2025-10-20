@@ -1,4 +1,4 @@
-# LangChain Multi-Provider Playground
+# AI人狼ゲーム
 
 このリポジトリは、LangChain を使って複数の LLM プロバイダ（Ollama, Gemini, OpenAI, Anthropic など）を切り替えながら、人狼ゲームの実験フローを構築・検証するための環境です。今後の利用は `experiments/` ディレクトリを基点に進めます。
 
