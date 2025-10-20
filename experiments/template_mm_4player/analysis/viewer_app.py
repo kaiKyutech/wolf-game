@@ -65,7 +65,12 @@ def main() -> None:
     runs = sorted(df["run"].dropna().unique())
     selected_run = st.sidebar.selectbox("Run番号", runs, format_func=lambda x: int(x))
 
-    run_df = df[df["run"] == selected_run].sort_values("turn_index")
+    run_df = df[df["run"] == selected_run].copy()
+    if "turn_index" in run_df.columns:
+        run_df["turn_index"] = pd.to_numeric(run_df["turn_index"], errors="coerce")
+        run_df = run_df.sort_values("turn_index", na_position="last")
+    else:
+        run_df["turn_index"] = float("nan")
     st.subheader(f"Run #{int(selected_run)}")
 
     discussion_rows = run_df[run_df.get("phase") == "discussion"]

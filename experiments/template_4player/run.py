@@ -1,4 +1,4 @@
-"""テキストのみ4人用ワンナイト人狼テンプレートの進行フロー。"""
+"""テキストのみ4人用ワンナイト人狼テンプレートの実行エントリ。"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import orjson
-from orjson import JSONDecodeError
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from experiments.runner import (
@@ -15,95 +14,84 @@ from experiments.runner import (
     next_sequential_log_path,
     parse_total_matches,
     setup_experiment_environment,
-    strip_code_fence,
 )
 from src.config import create_client_from_model_name, get_model_config
+
+from .helpers import (
+    DISCUSSION_ROUNDS,
+    MAX_RETRIES,
+    PLAY_ORDER,
+    build_user_prompt,
+    format_history,
+    invoke_with_retries,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config.yaml"
 PROMPTS_PATH = BASE_DIR / "prompts.yaml"
 LOGS_DIR = BASE_DIR / "logs"
 LOG_FILE_BASE = "logfile"
-PLAY_ORDER = ["A", "B", "C", "D"]
-DISCUSSION_ROUNDS = 2
 DEFAULT_TOTAL_MATCHES = 1
-MAX_RETRIES = 3
 
 
-def format_history(history: List[Dict[str, str]]) -> str:
-    """プレイヤー共有の会話履歴（speechのみ）を文字列化。"""
-
-    if not history:
-        return "まだ発言はありません。"
-    lines = [f"{entry['agent']}: {entry['speech']}" for entry in history]
-    return "\n".join(lines)
-
-
-def build_user_prompt(template: str, history_text: str) -> str:
-    """会話履歴プレースホルダを埋め込む。"""
-
-    base_template = template.rstrip()
-    if "{conversation_history}" in base_template:
-        return base_template.replace("{conversation_history}", history_text)
-    return (
-        f"{base_template}\n\n---\n【現在の会話履歴】\n{history_text}\n---\n"
+def main() -> None:
+    total_matches = parse_total_matches(
+        description="Run the 4-player text-only One Night Werewolf simulation",
+        default=DEFAULT_TOTAL_MATCHES,
     )
 
-def invoke_with_retries(
-    client,
-    messages: List[HumanMessage],
-    *,
-    require_vote: bool,
-    max_retries: int,
-    agent_id: str,
-    model_alias: str,
-) -> Tuple[Dict[str, str] | None, str | None, Exception | None]:
-    """LLM呼び出しとJSONパースを指定回数まで再試行する。"""
+    config, prompts, _, _ = setup_experiment_environment(
+        CONFIG_PATH,
+        PROMPTS_PATH,
+        log_dir=LOGS_DIR,
+        default_log_name=f"{LOG_FILE_BASE}.jsonl",
+    )
 
-    last_exc: Exception | None = None
-    for attempt in range(1, max_retries + 1):
+    ollama_failures: List[Tuple[str, str, str]] = []
+    agent_models = set(config.get("agents", {}).values())
+    for model_alias in sorted(agent_models):
         try:
-            response = client.invoke(messages)
-            content = getattr(response, "content", str(response))
-            parsed = parse_agent_output(content, require_vote=require_vote)
-            return parsed, content, None
-        except (ValueError, JSONDecodeError) as exc:
-            last_exc = exc
-            print(
-                f"Retryable parse error (attempt {attempt}/{max_retries}): {exc}"
+            model_config = get_model_config(model_alias)
+        except KeyError as exc:
+            ollama_failures.append(
+                (model_alias, "(unknown)", f"モデル設定が見つかりません: {exc}")
             )
-        except Exception as exc:
-            last_exc = exc
-            print(
-                f"Retryable invocation error (attempt {attempt}/{max_retries}): {exc}"
-            )
-            if "getaddrinfo failed" in str(exc).lower():
-                print(
-                    f"HINT: モデル '{model_alias}' の接続先を解決できません。"
-                    " config/models.yaml の base_url を確認してください。"
-                )
-    return None, None, last_exc
+            continue
+        if model_config.provider != "ollama":
+            continue
+        base_url = model_config.base_url or "http://localhost:11434"
+        ok, detail = check_ollama_endpoint(base_url)
+        if not ok:
+            ollama_failures.append((model_alias, base_url, detail))
 
+    if ollama_failures:
+        print("ERROR: Ollama エンドポイントへの接続確認に失敗しました。")
+        for alias, url, detail in ollama_failures:
+            print(f" - {alias}: base_url={url} -> {detail}")
+        print(
+            "config/models.yaml の base_url が最新のトンネル URL か、"
+            "証明書エラーが発生していないかを確認してください。"
+        )
+        return
 
-def parse_agent_output(raw_content: str, *, require_vote: bool = False) -> Dict[str, str]:
-    """エージェントのJSON出力を辞書化する。"""
-
-    sanitized = strip_code_fence(raw_content)
-    data = orjson.loads(sanitized)
-    thought = str(data.get("thought", "")).strip()
-    speech = str(data.get("speech", "")).strip()
-    if not speech:
-        raise ValueError("JSONに'speech'が含まれていません。")
-    vote = str(data.get("vote", "")).strip()
-    if require_vote and not vote:
-        raise ValueError("投票フェーズなのに'vote'が指定されていません。")
-    return {"thought": thought, "speech": speech, "vote": vote}
+    log_path = next_sequential_log_path(LOGS_DIR, LOG_FILE_BASE)
+    for run_index in range(1, total_matches + 1):
+        print(f"=== Starting run #{run_index} (log: {log_path.name}) ===")
+        success = run(
+            config,
+            prompts,
+            log_path,
+            run_index,
+        )
+        if not success:
+            print(f"=== Run #{run_index} failed. Moving to next match. ===")
 
 
 def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> bool:
+    """1試合分の進行を実行する。成功ならTrue。"""
+
     history: List[Dict[str, str]] = []
     votes: List[Dict[str, str]] = []
-    discussion_history_snapshot: List[Dict[str, str]] = []
     turn_counter = 0
     max_retries = MAX_RETRIES
     clients = {
@@ -202,8 +190,7 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> bool:
             with log_path.open("a", encoding="utf-8") as fh:
                 fh.write(orjson.dumps(record).decode("utf-8") + "\n")
 
-    discussion_history_snapshot = list(history)
-    history_text = format_history(discussion_history_snapshot)
+    history_text = format_history(list(history))
 
     # 投票フェーズ
     vote_round = DISCUSSION_ROUNDS + 1
@@ -309,54 +296,6 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> bool:
         fh.write(orjson.dumps(summary).decode("utf-8") + "\n")
 
     return True
-
-
-def main() -> None:
-    total_matches = parse_total_matches(
-        description="Run the 4-player text-only One Night Werewolf simulation",
-        default=DEFAULT_TOTAL_MATCHES,
-    )
-
-    config, prompts, _, _ = setup_experiment_environment(
-        CONFIG_PATH,
-        PROMPTS_PATH,
-        log_dir=LOGS_DIR,
-        default_log_name=f"{LOG_FILE_BASE}.jsonl",
-    )
-
-    ollama_failures: List[Tuple[str, str, str]] = []
-    agent_models = set(config.get("agents", {}).values())
-    for model_alias in sorted(agent_models):
-        try:
-            model_config = get_model_config(model_alias)
-        except KeyError as exc:
-            ollama_failures.append(
-                (model_alias, "(unknown)", f"モデル設定が見つかりません: {exc}")
-            )
-            continue
-        if model_config.provider != "ollama":
-            continue
-        base_url = model_config.base_url or "http://localhost:11434"
-        ok, detail = check_ollama_endpoint(base_url)
-        if not ok:
-            ollama_failures.append((model_alias, base_url, detail))
-
-    if ollama_failures:
-        print("ERROR: Ollama エンドポイントへの接続確認に失敗しました。")
-        for alias, url, detail in ollama_failures:
-            print(f" - {alias}: base_url={url} -> {detail}")
-        print(
-            "config/models.yaml の base_url が最新のトンネル URL か、"
-            "証明書エラーが発生していないかを確認してください。"
-        )
-        return
-
-    log_path = next_sequential_log_path(LOGS_DIR, LOG_FILE_BASE)
-    for run_index in range(1, total_matches + 1):
-        print(f"=== Starting run #{run_index} (log: {log_path.name}) ===")
-        success = run(config, prompts, log_path, run_index)
-        if not success:
-            print(f"=== Run #{run_index} failed. Moving to next match. ===")
 
 
 if __name__ == "__main__":
