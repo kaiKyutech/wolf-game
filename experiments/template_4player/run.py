@@ -10,6 +10,7 @@ from orjson import JSONDecodeError
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from experiments.runner import (
+    append_failure_log,
     check_ollama_endpoint,
     next_sequential_log_path,
     parse_total_matches,
@@ -156,6 +157,20 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> bool:
                 }
                 with log_path.open("a", encoding="utf-8") as fh:
                     fh.write(orjson.dumps(record).decode("utf-8") + "\n")
+
+                failure_record = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "run": run_index,
+                    "round": round_index,
+                    "phase": "discussion",
+                    "agent": agent_id,
+                    "model_name": model_alias,
+                    "system_prompt": system_prompt,
+                    "user_prompt": user_prompt,
+                    "raw_response": content,
+                    "error": str(error),
+                }
+                append_failure_log(LOGS_DIR, failure_record)
                 return False
 
             history.append({
@@ -235,6 +250,20 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> bool:
             }
             with log_path.open("a", encoding="utf-8") as fh:
                 fh.write(orjson.dumps(record).decode("utf-8") + "\n")
+
+            failure_record = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "run": run_index,
+                "round": vote_round,
+                "phase": "vote",
+                "agent": agent_id,
+                "model_name": model_alias,
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "raw_response": content,
+                "error": str(error),
+            }
+            append_failure_log(LOGS_DIR, failure_record)
             return False
 
         votes.append({"agent": agent_id, "vote": parsed["vote"]})

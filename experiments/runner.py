@@ -18,6 +18,7 @@ from src.config import create_client_from_model_name
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LOG_DIR = PROJECT_ROOT / "data" / "logs"
 DEFAULT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+FAILURE_LOG_FILENAME = "failed_responses.jsonl"
 
 
 class Turn(Dict[str, Any]):
@@ -277,6 +278,15 @@ def next_sequential_log_path(
     return candidate
 
 
+def append_failure_log(log_dir: Path, record: Dict[str, Any]) -> None:
+    """失敗した応答を共通ファイルに追記保存する。"""
+
+    log_dir.mkdir(parents=True, exist_ok=True)
+    path = log_dir / FAILURE_LOG_FILENAME
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(orjson.dumps(record).decode("utf-8") + "\n")
+
+
 def check_ollama_endpoint(
     base_url: str,
     *,
@@ -306,6 +316,7 @@ __all__ = [
     "collect_image_paths",
     "create_human_message_with_images",
     "next_sequential_log_path",
+    "append_failure_log",
     "check_ollama_endpoint",
     "parse_total_matches",
 ]
