@@ -3,21 +3,21 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import orjson
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from experiments.runner import (
     append_failure_log,
-    check_ollama_endpoint,
     collect_image_paths,
+    collect_ollama_connection_errors,
     load_image_base64,
     next_sequential_log_path,
     parse_total_matches,
     setup_experiment_environment,
 )
-from src.config import create_client_from_model_name, get_model_config
+from src.config import create_client_from_model_name
 
 from .helpers import (
     DISCUSSION_ROUNDS,
@@ -50,22 +50,8 @@ def main() -> None:
         default_log_name=f"{LOG_FILE_BASE}.jsonl",
     )
 
-    ollama_failures: List[Tuple[str, str, str]] = []
     agent_models = set(config.get("agents", {}).values())
-    for model_alias in sorted(agent_models):
-        try:
-            model_config = get_model_config(model_alias)
-        except KeyError as exc:
-            ollama_failures.append(
-                (model_alias, "(unknown)", f"モデル設定が見つかりません: {exc}")
-            )
-            continue
-        if model_config.provider != "ollama":
-            continue
-        base_url = model_config.base_url or "http://localhost:11434"
-        ok, detail = check_ollama_endpoint(base_url)
-        if not ok:
-            ollama_failures.append((model_alias, base_url, detail))
+    ollama_failures = collect_ollama_connection_errors(agent_models)
 
     if ollama_failures:
         print("ERROR: Ollama エンドポイントへの接続確認に失敗しました。")

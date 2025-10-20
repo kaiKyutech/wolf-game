@@ -13,7 +13,7 @@ import requests
 from requests import RequestException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
-from src.config import create_client_from_model_name
+from src.config import create_client_from_model_name, get_model_config
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LOG_DIR = PROJECT_ROOT / "data" / "logs"
@@ -304,6 +304,29 @@ def check_ollama_endpoint(
         return False, str(exc)
 
 
+def collect_ollama_connection_errors(model_aliases: Iterable[str]) -> List[Tuple[str, str, str]]:
+    """指定されたモデルエイリアスのうち、Ollama接続に失敗したものを収集する。"""
+
+    failures: List[Tuple[str, str, str]] = []
+    checked = set()
+    for alias in sorted(model_aliases):
+        if alias in checked:
+            continue
+        checked.add(alias)
+        try:
+            model_config = get_model_config(alias)
+        except KeyError as exc:
+            failures.append((alias, "(unknown)", f"モデル設定が見つかりません: {exc}"))
+            continue
+        if model_config.provider != "ollama":
+            continue
+        base_url = model_config.base_url or "http://localhost:11434"
+        ok, detail = check_ollama_endpoint(base_url)
+        if not ok:
+            failures.append((alias, base_url, detail))
+    return failures
+
+
 __all__ = [
     "Turn",
     "ExperimentConfig",
@@ -318,6 +341,7 @@ __all__ = [
     "next_sequential_log_path",
     "append_failure_log",
     "check_ollama_endpoint",
+    "collect_ollama_connection_errors",
     "parse_total_matches",
 ]
 
