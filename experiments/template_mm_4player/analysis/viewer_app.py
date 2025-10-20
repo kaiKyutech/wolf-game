@@ -87,13 +87,39 @@ def main() -> None:
                     st.write(row["thought"])
                 if row.get("images"):
                     st.caption(f"Images: {', '.join(row['images'])}")
+                if row.get("system_prompt") or row.get("user_prompt"):
+                    prompt_key = f"disc_prompt_{row.get('run', 0)}_{row.get('turn_index', -1)}_{row.get('agent', '?')}"
+                    if st.checkbox("プロンプト (System/User) を表示", key=prompt_key):
+                        if row.get("system_prompt"):
+                            st.caption("System Prompt")
+                            st.code(row["system_prompt"], language="markdown")
+                        if row.get("user_prompt"):
+                            st.caption("User Prompt")
+                            st.code(row["user_prompt"], language="markdown")
                 st.divider()
 
     with st.expander("投票フェーズ", expanded=True):
         if vote_rows.empty:
             st.write("投票フェーズのログがありません。")
         else:
-            st.table(vote_rows[["agent", "vote", "speech"]])
+            for _, row in vote_rows.iterrows():
+                st.markdown(
+                    f"#### {row.get('agent', '?')} — Vote: {row.get('vote', 'N/A')}"
+                )
+                if row.get("speech"):
+                    st.markdown(f"**Speech:** {row['speech']}")
+                if row.get("thought"):
+                    st.markdown("**Thought:**")
+                    st.write(row["thought"])
+                prompt_key = f"vote_prompt_{row.get('run', 0)}_{row.get('turn_index', -1)}_{row.get('agent', '?')}"
+                if st.checkbox("プロンプト (System/User) を表示", key=prompt_key):
+                    if row.get("system_prompt"):
+                        st.caption("System Prompt")
+                        st.code(row["system_prompt"], language="markdown")
+                    if row.get("user_prompt"):
+                        st.caption("User Prompt")
+                        st.code(row["user_prompt"], language="markdown")
+                st.divider()
 
     if not summary_rows.empty:
         st.subheader("投票サマリー")
