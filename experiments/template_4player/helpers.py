@@ -9,7 +9,6 @@ from langchain_core.messages import HumanMessage
 
 from experiments.runner import strip_code_fence
 
-PLAY_ORDER = ["A", "B", "C", "D"]
 DISCUSSION_ROUNDS = 2
 MAX_RETRIES = 3
 
@@ -86,7 +85,6 @@ def invoke_with_retries(
 
 
 __all__ = [
-    "PLAY_ORDER",
     "DISCUSSION_ROUNDS",
     "MAX_RETRIES",
     "format_history",

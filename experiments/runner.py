@@ -327,6 +327,34 @@ def collect_ollama_connection_errors(model_aliases: Iterable[str]) -> List[Tuple
     return failures
 
 
+def resolve_player_order(
+    config_agents: Dict[str, object],
+    prompt_agents: Dict[str, object],
+) -> List[str]:
+    """configとpromptsのエージェント定義からプレイヤー順を決定する。"""
+
+    if not config_agents:
+        raise ValueError("config.yaml の agents が空です。")
+    player_order = list(config_agents.keys())
+
+    if not prompt_agents:
+        raise ValueError("prompts.yaml の agents セクションが見つかりません。")
+
+    missing = [agent for agent in player_order if agent not in prompt_agents]
+    extra = [agent for agent in prompt_agents if agent not in config_agents]
+    if missing or extra:
+        detail = []
+        if missing:
+            detail.append(f"prompts.yaml に不足: {', '.join(missing)}")
+        if extra:
+            detail.append(f"config.yaml に未定義: {', '.join(extra)}")
+        raise ValueError(
+            "config.yaml と prompts.yaml の agents が一致しません。" " ".join(detail)
+        )
+
+    return player_order
+
+
 __all__ = [
     "Turn",
     "ExperimentConfig",
@@ -342,6 +370,7 @@ __all__ = [
     "append_failure_log",
     "check_ollama_endpoint",
     "collect_ollama_connection_errors",
+    "resolve_player_order",
     "parse_total_matches",
 ]
 

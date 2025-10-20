@@ -13,6 +13,7 @@ from experiments.runner import (
     collect_ollama_connection_errors,
     next_sequential_log_path,
     parse_total_matches,
+    resolve_player_order,
     setup_experiment_environment,
 )
 from src.config import create_client_from_model_name
@@ -20,7 +21,6 @@ from src.config import create_client_from_model_name
 from .helpers import (
     DISCUSSION_ROUNDS,
     MAX_RETRIES,
-    PLAY_ORDER,
     build_user_prompt,
     format_history,
     invoke_with_retries,
@@ -76,20 +76,24 @@ def main() -> None:
 def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> bool:
     """1試合分の進行を実行する。成功ならTrue。"""
 
+    config_agents = config.get("agents", {})
+    prompt_agents = prompts.get("agents", {})
+    player_order = resolve_player_order(config_agents, prompt_agents)
+
     history: List[Dict[str, str]] = []
     votes: List[Dict[str, str]] = []
     turn_counter = 0
     max_retries = MAX_RETRIES
     clients = {
-        agent_id: create_client_from_model_name(config["agents"][agent_id])
-        for agent_id in PLAY_ORDER
+        agent_id: create_client_from_model_name(config_agents[agent_id])
+        for agent_id in player_order
     }
 
     # 議論フェーズ
     for round_index in range(1, DISCUSSION_ROUNDS + 1):
-        for agent_id in PLAY_ORDER:
-            model_alias = config["agents"][agent_id]
-            agent_prompts = prompts["agents"][agent_id]
+        for agent_id in player_order:
+            model_alias = config_agents[agent_id]
+            agent_prompts = prompt_agents[agent_id]
             prompt_bundle = agent_prompts["discussion"]
 
             client = clients[agent_id]
@@ -180,9 +184,9 @@ def run(config: Dict, prompts: Dict, log_path: Path, run_index: int) -> bool:
 
     # 投票フェーズ
     vote_round = DISCUSSION_ROUNDS + 1
-    for agent_id in PLAY_ORDER:
-        model_alias = config["agents"][agent_id]
-        agent_prompts = prompts["agents"][agent_id]
+    for agent_id in player_order:
+        model_alias = config_agents[agent_id]
+        agent_prompts = prompt_agents[agent_id]
         prompt_bundle = agent_prompts["vote"]
 
         client = clients[agent_id]
