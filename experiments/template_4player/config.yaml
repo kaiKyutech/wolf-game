@@ -1,7 +1,7 @@
 log_filename: logfile.jsonl
 agents:
-  A: ollama_gpt-oss:20b
-  B: ollama_gpt-oss:20b
-  C: ollama_gpt-oss:20b
-  D: ollama_gpt-oss:20b
+  A: openai_gpt-oss-20b
+  B: openai_gpt-oss-20b
+  C: openai_gpt-oss-20b
+  D: openai_gpt-oss-20b
 prompts_file: prompts.yaml
